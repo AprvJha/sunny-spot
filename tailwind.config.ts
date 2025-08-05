@@ -63,6 +63,25 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				}
 			},
+			backgroundImage: {
+				'gradient-clear': 'var(--gradient-clear)',
+				'gradient-clouds': 'var(--gradient-clouds)',
+				'gradient-rain': 'var(--gradient-rain)',
+				'gradient-storm': 'var(--gradient-storm)',
+				'gradient-snow': 'var(--gradient-snow)',
+				'gradient-mist': 'var(--gradient-mist)',
+				'gradient-sunset': 'var(--gradient-sunset)',
+				'gradient-night': 'var(--gradient-night)',
+			},
+			boxShadow: {
+				'weather': 'var(--shadow-weather)',
+				'card-weather': 'var(--shadow-card)',
+				'glow': 'var(--shadow-glow)',
+			},
+			transitionTimingFunction: {
+				'smooth': 'var(--transition-smooth)',
+				'bounce': 'var(--transition-bounce)',
+			},
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
