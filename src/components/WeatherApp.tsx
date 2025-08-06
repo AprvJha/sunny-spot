@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { WeatherData, ForecastData, TemperatureUnit } from '../types/weather';
+import { HourlyWeatherData } from '../types/hourlyWeather';
 import { weatherApi, getLocationFromBrowser } from '../services/weatherApi';
 import { getWeatherCondition, getBackgroundClass, isDay } from '../utils/weatherUtils';
 import { ApiKeyModal } from './ApiKeyModal';
 import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
+import { HourlyForecast } from './HourlyForecast';
 import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
@@ -15,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 export const WeatherApp = () => {
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
+  const [hourlyForecast, setHourlyForecast] = useState<HourlyWeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -87,6 +90,18 @@ export const WeatherApp = () => {
       setCurrentWeather(weatherData);
       setForecast(forecastData);
       
+      // Fetch hourly forecast using coordinates
+      try {
+        const hourlyData = await weatherApi.getHourlyForecast(
+          weatherData.coord.lat, 
+          weatherData.coord.lon
+        );
+        setHourlyForecast(hourlyData);
+      } catch (hourlyError) {
+        console.warn('Hourly forecast not available:', hourlyError);
+        setHourlyForecast(null);
+      }
+      
       // Save last searched city
       localStorage.setItem('lastSearchedCity', city);
       
@@ -99,6 +114,7 @@ export const WeatherApp = () => {
       setError(errorMessage);
       setCurrentWeather(null);
       setForecast(null);
+      setHourlyForecast(null);
       
       toast({
         title: "Error",
@@ -123,6 +139,15 @@ export const WeatherApp = () => {
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
+      
+      // Fetch hourly forecast
+      try {
+        const hourlyData = await weatherApi.getHourlyForecast(location.latitude, location.longitude);
+        setHourlyForecast(hourlyData);
+      } catch (hourlyError) {
+        console.warn('Hourly forecast not available:', hourlyError);
+        setHourlyForecast(null);
+      }
       
       // Save the city name for future reference
       localStorage.setItem('lastSearchedCity', weatherData.name);
@@ -220,6 +245,15 @@ export const WeatherApp = () => {
                 weather={currentWeather} 
                 temperatureUnit={temperatureUnit} 
               />
+              
+              {hourlyForecast && (
+                <HourlyForecast 
+                  hourlyData={hourlyForecast.hourly} 
+                  temperatureUnit={temperatureUnit}
+                  timezoneOffset={hourlyForecast.timezone_offset}
+                />
+              )}
+              
               <ForecastChart 
                 forecast={forecast} 
                 temperatureUnit={temperatureUnit} 
