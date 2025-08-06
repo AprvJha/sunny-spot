@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { WeatherData, ForecastData, TemperatureUnit } from '../types/weather';
-import { HourlyWeatherData } from '../types/hourlyWeather';
 import { weatherApi, getLocationFromBrowser } from '../services/weatherApi';
 import { getWeatherCondition, getBackgroundClass, isDay } from '../utils/weatherUtils';
+import { useOfflineWeather } from '../hooks/useOfflineWeather';
 import { ApiKeyModal } from './ApiKeyModal';
 import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
-import { HourlyForecast } from './HourlyForecast';
-import { WeatherWidgets } from './WeatherWidgets';
+import { OptimizedHourlyForecast } from './OptimizedHourlyForecast';
+import { OfflineIndicator } from './OfflineIndicator';
 import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
@@ -18,12 +18,15 @@ import { toast } from '@/hooks/use-toast';
 export const WeatherApp = () => {
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
-  const [hourlyForecast, setHourlyForecast] = useState<HourlyWeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
   const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-clear');
+  const [isUsingCachedData, setIsUsingCachedData] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const { isOnline, cacheWeatherData, getCachedWeatherData, clearExpiredCache } = useOfflineWeather();
 
   // Initialize app
   useEffect(() => {
@@ -78,9 +81,35 @@ export const WeatherApp = () => {
     });
   };
 
-  const searchWeather = async (city: string) => {
+  const searchWeather = useCallback(async (city: string) => {
     setIsLoading(true);
     setError(null);
+    setIsUsingCachedData(false);
+
+    // Clear expired cache first
+    clearExpiredCache();
+
+    // Check for cached data if offline or as fallback
+    if (!isOnline) {
+      const cachedData = getCachedWeatherData(city);
+      if (cachedData) {
+        setCurrentWeather(cachedData.weather);
+        setForecast(cachedData.forecast);
+        setIsUsingCachedData(true);
+        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
+        setIsLoading(false);
+        
+        toast({
+          title: "Offline Mode",
+          description: `Showing cached weather for ${cachedData.weather.name}`,
+        });
+        return;
+      } else {
+        setError('No cached data available for this city while offline');
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       const [weatherData, forecastData] = await Promise.all([
@@ -90,18 +119,10 @@ export const WeatherApp = () => {
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
+      setLastUpdated(new Date().toLocaleString());
       
-      // Fetch hourly forecast using coordinates
-      try {
-        const hourlyData = await weatherApi.getHourlyForecast(
-          weatherData.coord.lat, 
-          weatherData.coord.lon
-        );
-        setHourlyForecast(hourlyData);
-      } catch (hourlyError) {
-        console.warn('Hourly forecast not available:', hourlyError);
-        setHourlyForecast(null);
-      }
+      // Cache the data for offline use
+      cacheWeatherData(weatherData, forecastData, city);
       
       // Save last searched city
       localStorage.setItem('lastSearchedCity', city);
@@ -112,24 +133,53 @@ export const WeatherApp = () => {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch weather data';
-      setError(errorMessage);
-      setCurrentWeather(null);
-      setForecast(null);
-      setHourlyForecast(null);
       
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      // Try to show cached data as fallback
+      const cachedData = getCachedWeatherData(city);
+      if (cachedData) {
+        setCurrentWeather(cachedData.weather);
+        setForecast(cachedData.forecast);
+        setIsUsingCachedData(true);
+        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
+        
+        toast({
+          title: "Using Cached Data",
+          description: `Network error. Showing cached weather for ${cachedData.weather.name}`,
+          variant: "destructive",
+        });
+      } else {
+        setError(errorMessage);
+        setCurrentWeather(null);
+        setForecast(null);
+        
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isOnline, getCachedWeatherData, cacheWeatherData, clearExpiredCache]);
 
-  const handleLocationSearch = async () => {
+  const handleLocationSearch = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setIsUsingCachedData(false);
+
+    if (!isOnline) {
+      // Try to use last searched city from cache
+      const lastCity = localStorage.getItem('lastSearchedCity');
+      if (lastCity) {
+        await searchWeather(lastCity);
+        return;
+      } else {
+        setError('Location services require internet connection');
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       const location = await getLocationFromBrowser();
@@ -140,15 +190,10 @@ export const WeatherApp = () => {
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
+      setLastUpdated(new Date().toLocaleString());
       
-      // Fetch hourly forecast
-      try {
-        const hourlyData = await weatherApi.getHourlyForecast(location.latitude, location.longitude);
-        setHourlyForecast(hourlyData);
-      } catch (hourlyError) {
-        console.warn('Hourly forecast not available:', hourlyError);
-        setHourlyForecast(null);
-      }
+      // Cache the data for offline use
+      cacheWeatherData(weatherData, forecastData, weatherData.name);
       
       // Save the city name for future reference
       localStorage.setItem('lastSearchedCity', weatherData.name);
@@ -169,7 +214,7 @@ export const WeatherApp = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isOnline, searchWeather, cacheWeatherData]);
 
   const handleRefresh = () => {
     if (currentWeather) {
@@ -224,6 +269,13 @@ export const WeatherApp = () => {
           currentCity={currentWeather?.name || ''}
         />
 
+        {/* Offline Indicator */}
+        <OfflineIndicator 
+          isOnline={isOnline}
+          isUsingCachedData={isUsingCachedData}
+          lastUpdated={lastUpdated}
+        />
+
         {/* Content */}
         <main className="space-y-8">
           {error ? (
@@ -247,18 +299,10 @@ export const WeatherApp = () => {
                 temperatureUnit={temperatureUnit} 
               />
               
-              <WeatherWidgets 
-                weather={currentWeather} 
-                temperatureUnit={temperatureUnit} 
+              <OptimizedHourlyForecast 
+                forecast={forecast} 
+                temperatureUnit={temperatureUnit}
               />
-              
-              {hourlyForecast && (
-                <HourlyForecast 
-                  hourlyData={hourlyForecast.hourly} 
-                  temperatureUnit={temperatureUnit}
-                  timezoneOffset={hourlyForecast.timezone_offset}
-                />
-              )}
               
               <ForecastChart 
                 forecast={forecast} 

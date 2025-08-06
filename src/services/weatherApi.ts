@@ -1,5 +1,4 @@
 import { WeatherData, ForecastData, LocationData } from '../types/weather';
-import { HourlyWeatherData } from '../types/hourlyWeather';
 
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
@@ -73,33 +72,6 @@ class WeatherApiService {
     });
   }
 
-  async getHourlyForecast(lat: number, lon: number): Promise<HourlyWeatherData> {
-    // Using OpenWeatherMap One Call API for hourly data
-    if (!this.apiKey) {
-      throw new Error('API key is required. Please set your OpenWeatherMap API key.');
-    }
-
-    const url = new URL('https://api.openweathermap.org/data/3.0/onecall');
-    url.searchParams.append('lat', lat.toString());
-    url.searchParams.append('lon', lon.toString());
-    url.searchParams.append('appid', this.apiKey);
-    url.searchParams.append('units', 'metric');
-    url.searchParams.append('exclude', 'minutely,daily,alerts');
-
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenWeatherMap API key.');
-      } else if (response.status === 404) {
-        throw new Error('Location not found. Please check the coordinates.');
-      } else {
-        throw new Error(`Weather service error: ${response.statusText}`);
-      }
-    }
-
-    return response.json();
-  }
 }
 
 export const weatherApi = new WeatherApiService();
