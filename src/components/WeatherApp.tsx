@@ -8,6 +8,7 @@ import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
 import { HourlyForecast } from './HourlyForecast';
+import { WeatherWidgets } from './WeatherWidgets';
 import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
@@ -242,6 +243,11 @@ export const WeatherApp = () => {
           ) : currentWeather && forecast ? (
             <>
               <WeatherCard 
+                weather={currentWeather} 
+                temperatureUnit={temperatureUnit} 
+              />
+              
+              <WeatherWidgets 
                 weather={currentWeather} 
                 temperatureUnit={temperatureUnit} 
               />
