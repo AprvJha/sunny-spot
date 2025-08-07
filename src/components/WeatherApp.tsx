@@ -14,7 +14,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
 import { TemperatureToggle } from './TemperatureToggle';
 import { toast } from '@/hooks/use-toast';
-import weatherLogo from '@/assets/weather-logo.png';
+import cloudcastLogo from '@/assets/cloudcast-logo.png';
 
 export const WeatherApp = () => {
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
@@ -245,12 +245,12 @@ export const WeatherApp = () => {
         <header className="flex justify-between items-start">
           <div>
             <img 
-              src={weatherLogo} 
-              alt="Weather Now Logo" 
+              src={cloudcastLogo} 
+              alt="CloudCast Logo" 
               className="h-16 md:h-20 mb-4 object-contain"
             />
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
-              Weather Now
+              CloudCast
             </h1>
             <p className="text-muted-foreground">
               Beautiful weather forecasts at your fingertips
@@ -330,12 +330,6 @@ export const WeatherApp = () => {
           onApiKeySet={handleApiKeySet} 
         />
 
-        {/* Attribution */}
-        <footer className="fixed bottom-4 right-4 z-10">
-          <p className="text-xs text-muted-foreground/70 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full border border-border/50">
-            Made by Apoorv Jha, Abhishek Sharma, Harshit Vishnoi
-          </p>
-        </footer>
       </div>
     </div>
   );
