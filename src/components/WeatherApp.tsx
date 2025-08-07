@@ -17,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import cloudcastLogo from '@/assets/cloudcast-logo.png';
 
 export const WeatherApp = () => {
+  console.log('CloudCast logo imported:', cloudcastLogo);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
