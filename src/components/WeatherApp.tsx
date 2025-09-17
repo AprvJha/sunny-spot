@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { WeatherData, ForecastData, TemperatureUnit } from '../types/weather';
+import { WeatherData, ForecastData, TemperatureUnit, WeatherCondition } from '../types/weather';
 import { weatherApi, getLocationFromBrowser } from '../services/weatherApi';
 import { getWeatherCondition, getBackgroundClass, isDay } from '../utils/weatherUtils';
 import { useOfflineWeather } from '../hooks/useOfflineWeather';
@@ -8,6 +8,10 @@ import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
 import { OptimizedHourlyForecast } from './OptimizedHourlyForecast';
+import { CityDashboard } from './CityDashboard';
+import { LocalTimeWidget } from './LocalTimeWidget';
+import { PopularCities } from './PopularCities';
+import { WeatherBackground } from './WeatherBackground';
 import { OfflineIndicator } from './OfflineIndicator';
 import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
@@ -25,6 +29,7 @@ export const WeatherApp = () => {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
   const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-hero');
+  const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('clear');
   const [isUsingCachedData, setIsUsingCachedData] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
@@ -66,6 +71,7 @@ export const WeatherApp = () => {
       const condition = getWeatherCondition(currentWeather.weather[0].main, isDayTime);
       const bgClass = getBackgroundClass(condition);
       setBackgroundCondition(bgClass);
+      setWeatherCondition(condition);
     }
   }, [currentWeather]);
 
@@ -229,6 +235,10 @@ export const WeatherApp = () => {
     localStorage.setItem('temperatureUnit', unit);
   };
 
+  const handleCityAdd = useCallback(async (city: string) => {
+    await searchWeather(city);
+  }, [searchWeather]);
+
   const handleRetry = () => {
     setError(null);
     const lastCity = localStorage.getItem('lastSearchedCity');
@@ -240,7 +250,9 @@ export const WeatherApp = () => {
   };
 
   return (
-    <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000`}>
+    <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
+      {/* Animated Weather Background */}
+      <WeatherBackground condition={weatherCondition} />
       {/* Modern Navigation Bar */}
       <nav className="relative z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -302,6 +314,34 @@ export const WeatherApp = () => {
           isUsingCachedData={isUsingCachedData}
           lastUpdated={lastUpdated}
         />
+
+          {/* Popular Cities */}
+          <div className="max-w-6xl mx-auto">
+            <PopularCities 
+              onCitySelect={searchWeather}
+              isLoading={isLoading}
+            />
+          </div>
+
+          {/* Multi-City Dashboard */}
+          <div className="max-w-6xl mx-auto">
+            <CityDashboard 
+              currentWeather={currentWeather}
+              temperatureUnit={temperatureUnit}
+              onAddCity={handleCityAdd}
+            />
+          </div>
+
+          {/* Local Time Widget */}
+          {currentWeather && (
+            <div className="max-w-md mx-auto">
+              <LocalTimeWidget 
+                cityName={currentWeather.name}
+                timezoneOffset={currentWeather.timezone}
+                country={currentWeather.sys.country}
+              />
+            </div>
+          )}
 
         {/* Weather Content */}
         <div className="space-y-8">
