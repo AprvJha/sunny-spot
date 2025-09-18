@@ -1,0 +1,28 @@
+{
+  "name": "CloudCast - Modern Weather Experience",
+  "short_name": "CloudCast",
+  "description": "Experience weather like never before with our modern, beautiful interface featuring real-time forecasts and dynamic backgrounds.",
+  "theme_color": "#0f172a",
+  "background_color": "#1e293b",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/cloudcast-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/cloudcast-icon.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["weather", "utilities"],
+  "lang": "en",
+  "dir": "ltr"
+}
