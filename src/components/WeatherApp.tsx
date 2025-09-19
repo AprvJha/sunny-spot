@@ -17,6 +17,8 @@ import { PopularCities } from './PopularCities';
 import { VoiceSearch } from './VoiceSearch';
 import { SettingsModal } from './SettingsModal';
 import { AuthModal } from './AuthModal';
+import { DemoCredentialsBanner } from './DemoCredentialsBanner';
+import { SetupInstructions } from './SetupInstructions';
 import { useOfflineWeather } from '../hooks/useOfflineWeather';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -33,6 +35,7 @@ export const WeatherApp = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentCity, setCurrentCity] = useState('');
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   
   const { preferences, addToFavorites } = useSettings();
   const { checkForExtremeWeather } = useNotifications();
@@ -117,8 +120,24 @@ export const WeatherApp = () => {
     }
   };
 
+  const handleApiKeySet = (apiKey: string) => {
+    weatherApi.setApiKey(apiKey);
+    setShowApiKeyModal(false);
+    // Try to load a default city after API key is set
+    const lastCity = localStorage.getItem('lastSearchedCity');
+    if (lastCity) {
+      fetchWeatherData(lastCity);
+    }
+  };
+
+  // Show setup instructions if no API key is set
+  if (!weatherApi.hasApiKey() && !showApiKeyModal) {
+    return <SetupInstructions onSetApiKey={() => setShowApiKeyModal(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-background/80 relative overflow-hidden">
+      <DemoCredentialsBanner />
       <WeatherBackground condition={currentWeather ? 'clear' : 'clear'} />
       
       <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
@@ -138,7 +157,7 @@ export const WeatherApp = () => {
             <SettingsModal />
             <AuthModal />
             <ThemeToggle />
-            <ApiKeyModal isOpen={!weatherApi.hasApiKey()} onApiKeySet={(key) => weatherApi.setApiKey(key)} />
+            <ApiKeyModal isOpen={showApiKeyModal || !weatherApi.hasApiKey()} onApiKeySet={handleApiKeySet} />
           </div>
         </div>
 
