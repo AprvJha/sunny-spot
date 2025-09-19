@@ -39,7 +39,7 @@ export const WeatherApp = () => {
   const { isInstallable, installApp } = usePWA();
   const t = useTranslations();
 
-  const { isOnline, saveWeatherData, getCachedWeatherData } = useOfflineWeather();
+  const { isOnline, cacheWeatherData, getCachedWeatherData } = useOfflineWeather();
 
   const fetchWeatherData = useCallback(async (city: string) => {
     if (!weatherApi.hasApiKey()) {
@@ -70,7 +70,7 @@ export const WeatherApp = () => {
       setCurrentWeather(weatherData);
       setForecast(forecastData);
       setCurrentCity(city);
-      saveWeatherData(weatherData, forecastData);
+      cacheWeatherData(weatherData, forecastData, city);
       localStorage.setItem('lastSearchedCity', city);
       
       checkForExtremeWeather(weatherData);
@@ -78,7 +78,7 @@ export const WeatherApp = () => {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch weather data';
       setError(errorMessage);
       
-      const cached = getCachedWeatherData();
+      const cached = getCachedWeatherData(city);
       if (cached) {
         setCurrentWeather(cached.weather);
         setForecast(cached.forecast);
@@ -88,7 +88,7 @@ export const WeatherApp = () => {
     } finally {
       setLoading(false);
     }
-  }, [saveWeatherData, getCachedWeatherData, preferences.language, checkForExtremeWeather]);
+  }, [cacheWeatherData, getCachedWeatherData, preferences.language, checkForExtremeWeather]);
 
   // Sync temperature unit with preferences
   useEffect(() => {
@@ -138,12 +138,18 @@ export const WeatherApp = () => {
             <SettingsModal />
             <AuthModal />
             <ThemeToggle />
-            <ApiKeyModal />
+            <ApiKeyModal isOpen={!weatherApi.hasApiKey()} onApiKeySet={(key) => weatherApi.setApiKey(key)} />
           </div>
         </div>
 
         <div className="grid gap-6 mb-8">
-          <SearchBar onSearch={fetchWeatherData} disabled={loading} />
+          <SearchBar 
+            onSearch={fetchWeatherData} 
+            onLocationSearch={handleLocationSearch}
+            onRefresh={() => currentCity && fetchWeatherData(currentCity)}
+            isLoading={loading}
+            currentCity={currentCity}
+          />
           <PopularCities onCitySelect={fetchWeatherData} isLoading={loading} />
         </div>
 

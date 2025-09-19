@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, LogIn, UserPlus } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { User, LogIn, UserPlus, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from '@/hooks/useTranslations';
 import { toast } from 'sonner';
@@ -20,13 +21,14 @@ interface AuthModalProps {
 }
 
 export const AuthModal = ({ trigger }: AuthModalProps) => {
-  const { user, signIn, signUp, signOut } = useAuth();
+  const { user, signIn, signUp, signOut, resetPassword } = useAuth();
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [activeTab, setActiveTab] = useState('signin');
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +85,29 @@ export const AuthModal = ({ trigger }: AuthModalProps) => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email.trim()) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const { error } = await resetPassword(email);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Password reset link sent to your email');
+        setActiveTab('signin');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (user) {
     return (
       <Dialog open={open} onOpenChange={setOpen}>
@@ -127,8 +152,8 @@ export const AuthModal = ({ trigger }: AuthModalProps) => {
           <DialogTitle className="text-foreground">{t.auth.signIn}</DialogTitle>
         </DialogHeader>
         
-        <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-muted/50">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-muted/50">
             <TabsTrigger value="signin" className="flex items-center gap-2">
               <LogIn className="h-4 w-4" />
               {t.auth.signIn}
@@ -136,6 +161,10 @@ export const AuthModal = ({ trigger }: AuthModalProps) => {
             <TabsTrigger value="signup" className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
               {t.auth.signUp}
+            </TabsTrigger>
+            <TabsTrigger value="reset" className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              Reset
             </TabsTrigger>
           </TabsList>
           
@@ -168,6 +197,18 @@ export const AuthModal = ({ trigger }: AuthModalProps) => {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? t.common.loading : t.auth.signIn}
               </Button>
+              
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setActiveTab('reset')}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Forgot your password?
+                </Button>
+              </div>
             </form>
           </TabsContent>
           
@@ -212,6 +253,45 @@ export const AuthModal = ({ trigger }: AuthModalProps) => {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? t.common.loading : t.auth.signUp}
               </Button>
+            </form>
+          </TabsContent>
+          
+          <TabsContent value="reset">
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Enter your email address and we'll send you a link to reset your password.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="bg-card/60 border-white/10"
+                  placeholder="Enter your email address"
+                />
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+              
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setActiveTab('signin')}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Back to Sign In
+                </Button>
+              </div>
             </form>
           </TabsContent>
         </Tabs>
