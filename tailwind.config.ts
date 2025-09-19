@@ -64,30 +64,23 @@ export default {
 				}
 			},
 			backgroundImage: {
-				'gradient-primary': 'var(--gradient-primary)',
-				'gradient-surface': 'var(--gradient-surface)',
-				'gradient-hero': 'var(--gradient-hero)',
 				'gradient-clear': 'var(--gradient-clear)',
 				'gradient-clouds': 'var(--gradient-clouds)',
 				'gradient-rain': 'var(--gradient-rain)',
 				'gradient-storm': 'var(--gradient-storm)',
 				'gradient-snow': 'var(--gradient-snow)',
 				'gradient-mist': 'var(--gradient-mist)',
+				'gradient-sunset': 'var(--gradient-sunset)',
+				'gradient-night': 'var(--gradient-night)',
 			},
 			boxShadow: {
-				'soft': 'var(--shadow-soft)',
-				'medium': 'var(--shadow-medium)',
-				'large': 'var(--shadow-large)',
+				'weather': 'var(--shadow-weather)',
+				'card-weather': 'var(--shadow-card)',
 				'glow': 'var(--shadow-glow)',
-				'card': 'var(--shadow-card)',
 			},
 			transitionTimingFunction: {
-				'fast': 'var(--transition-fast)',
 				'smooth': 'var(--transition-smooth)',
-				'spring': 'var(--transition-spring)',
-			},
-			fontFamily: {
-				'sans': ['Inter', 'system-ui', 'sans-serif'],
+				'bounce': 'var(--transition-bounce)',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

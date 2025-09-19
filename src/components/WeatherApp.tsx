@@ -17,14 +17,13 @@ import { toast } from '@/hooks/use-toast';
 import cloudcastLogo from '@/assets/cloudcast-logo.png';
 
 export const WeatherApp = () => {
-  console.log('CloudCast logo imported:', cloudcastLogo);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
-  const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-hero');
+  const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-clear');
   const [isUsingCachedData, setIsUsingCachedData] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
@@ -240,138 +239,98 @@ export const WeatherApp = () => {
   };
 
   return (
-    <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000`}>
-      {/* Modern Navigation Bar */}
-      <nav className="relative z-10 p-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo & Brand */}
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <img 
-                src={cloudcastLogo} 
-                alt="CloudCast Logo" 
-                className="h-12 w-12 object-contain drop-shadow-lg"
-              />
-              <div className="absolute -inset-1 bg-gradient-primary rounded-full opacity-20 blur-sm"></div>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold gradient-text">CloudCast</h1>
-              <p className="text-sm text-muted-foreground font-medium">Modern Weather</p>
-            </div>
+    <div className={backgroundCondition}>
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Header */}
+        <header className="flex justify-between items-start">
+          <div>
+            <img 
+              src={cloudcastLogo} 
+              alt="CloudCast Logo" 
+              className="h-16 md:h-20 mb-4 object-contain"
+            />
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
+              CloudCast
+            </h1>
+            <p className="text-muted-foreground">
+              Beautiful weather forecasts at your fingertips
+            </p>
           </div>
           
-          {/* Controls */}
-          <div className="flex items-center space-x-3">
+          <div className="flex gap-2">
             <TemperatureToggle 
               unit={temperatureUnit} 
               onToggle={handleTemperatureToggle} 
             />
             <ThemeToggle />
           </div>
-        </div>
-      </nav>
+        </header>
 
-      {/* Main Content Container */}
-      <main className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
-        {/* Hero Search Section */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Weather Made Beautiful
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Experience precise weather forecasts with our elegant, modern interface
-            </p>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto">
-            <SearchBar 
-              onSearch={searchWeather}
-              onLocationSearch={handleLocationSearch}
-              onRefresh={handleRefresh}
-              isLoading={isLoading}
-              currentCity={currentWeather?.name || ''}
-            />
-          </div>
-        </div>
+        {/* Search Bar */}
+        <SearchBar 
+          onSearch={searchWeather}
+          onLocationSearch={handleLocationSearch}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+          currentCity={currentWeather?.name || ''}
+        />
 
-        {/* Status Indicators */}
+        {/* Offline Indicator */}
         <OfflineIndicator 
           isOnline={isOnline}
           isUsingCachedData={isUsingCachedData}
           lastUpdated={lastUpdated}
         />
 
-        {/* Weather Content */}
-        <div className="space-y-8">
+        {/* Content */}
+        <main className="space-y-8">
           {error ? (
-            <div className="max-w-2xl mx-auto">
-              <ErrorMessage 
-                message={error}
-                onRetry={handleRetry}
-                onShowApiKeyModal={() => setShowApiKeyModal(true)}
-                showApiKeyButton={weatherApi.hasApiKey()}
-              />
-            </div>
+            <ErrorMessage 
+              message={error}
+              onRetry={handleRetry}
+              onShowApiKeyModal={() => setShowApiKeyModal(true)}
+              showApiKeyButton={weatherApi.hasApiKey()}
+            />
           ) : isLoading ? (
-            <div className="space-y-8">
-              <div className="max-w-4xl mx-auto">
-                <SkeletonWeatherCard />
+            <>
+              <SkeletonWeatherCard />
+              <div className="w-full max-w-4xl mx-auto">
+                <LoadingSpinner message="Fetching weather forecast..." />
               </div>
-              <div className="max-w-6xl mx-auto">
-                <LoadingSpinner message="Fetching beautiful weather data..." />
-              </div>
-            </div>
+            </>
           ) : currentWeather && forecast ? (
-            <div className="space-y-8">
-              {/* Main Weather Card */}
-              <div className="max-w-4xl mx-auto">
-                <WeatherCard 
-                  weather={currentWeather} 
-                  temperatureUnit={temperatureUnit} 
-                />
-              </div>
+            <>
+              <WeatherCard 
+                weather={currentWeather} 
+                temperatureUnit={temperatureUnit} 
+              />
               
-              {/* Hourly Forecast */}
-              <div className="max-w-6xl mx-auto">
-                <OptimizedHourlyForecast 
-                  forecast={forecast} 
-                  temperatureUnit={temperatureUnit}
-                />
-              </div>
+              <OptimizedHourlyForecast 
+                forecast={forecast} 
+                temperatureUnit={temperatureUnit}
+              />
               
-              {/* Forecast Chart */}
-              <div className="max-w-6xl mx-auto">
-                <ForecastChart 
-                  forecast={forecast} 
-                  temperatureUnit={temperatureUnit} 
-                />
-              </div>
-            </div>
+              <ForecastChart 
+                forecast={forecast} 
+                temperatureUnit={temperatureUnit} 
+              />
+            </>
           ) : (
-            <div className="max-w-2xl mx-auto text-center py-20">
-              <div className="modern-card p-12">
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto opacity-20"></div>
-                  <h3 className="text-2xl font-semibold text-foreground">
-                    Ready to explore?
-                  </h3>
-                  <p className="text-muted-foreground text-lg">
-                    Search for any city or use your current location to get started
-                  </p>
-                </div>
-              </div>
+            <div className="text-center py-16">
+              <p className="text-muted-foreground text-lg">
+                Search for a city or use your location to get started
+              </p>
             </div>
           )}
-        </div>
-      </main>
+        </main>
 
-      {/* API Key Modal */}
-      <ApiKeyModal 
-        isOpen={showApiKeyModal} 
-        onApiKeySet={handleApiKeySet} 
-      />
+        {/* API Key Modal */}
+        <ApiKeyModal 
+          isOpen={showApiKeyModal} 
+          onApiKeySet={handleApiKeySet} 
+        />
+
+      </div>
     </div>
   );
 };
