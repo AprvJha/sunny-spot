@@ -1,425 +1,167 @@
 import { useState, useEffect, useCallback } from 'react';
-import { WeatherData, ForecastData, TemperatureUnit, WeatherCondition } from '../types/weather';
 import { weatherApi, getLocationFromBrowser } from '../services/weatherApi';
-import { getWeatherCondition, getBackgroundClass, isDay } from '../utils/weatherUtils';
-import { useOfflineWeather } from '../hooks/useOfflineWeather';
-import { ApiKeyModal } from './ApiKeyModal';
+import { WeatherData, ForecastData, TemperatureUnit } from '../types/weather';
 import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
-import { OptimizedHourlyForecast } from './OptimizedHourlyForecast';
+import { LoadingSpinner } from './LoadingSpinner';
+import { ErrorMessage } from './ErrorMessage';
+import { TemperatureToggle } from './TemperatureToggle';
+import { ApiKeyModal } from './ApiKeyModal';
+import { ThemeToggle } from './ThemeToggle';
+import { OfflineIndicator } from './OfflineIndicator';
+import { WeatherBackground } from './WeatherBackground';
 import { CityDashboard } from './CityDashboard';
 import { LocalTimeWidget } from './LocalTimeWidget';
 import { PopularCities } from './PopularCities';
-import { WeatherBackground } from './WeatherBackground';
-import { OfflineIndicator } from './OfflineIndicator';
-import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
-import { ErrorMessage } from './ErrorMessage';
-import { ThemeToggle } from './ThemeToggle';
-import { TemperatureToggle } from './TemperatureToggle';
-import { toast } from '@/hooks/use-toast';
-import cloudcastLogo from '@/assets/cloudcast-logo.png';
+import { VoiceSearch } from './VoiceSearch';
+import { SettingsModal } from './SettingsModal';
+import { AuthModal } from './AuthModal';
+import { useOfflineWeather } from '../hooks/useOfflineWeather';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useNotifications } from '@/hooks/useNotifications';
+import { usePWA } from '@/hooks/usePWA';
+import { useTranslations } from '@/hooks/useTranslations';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const WeatherApp = () => {
-  console.log('WeatherApp component starting to render...');
-  console.log('CloudCast logo imported:', cloudcastLogo);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [currentCity, setCurrentCity] = useState('');
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
-  const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-hero');
-  const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('clear');
-  const [isUsingCachedData, setIsUsingCachedData] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
+  
+  const { preferences, addToFavorites } = useSettings();
+  const { checkForExtremeWeather } = useNotifications();
+  const { isInstallable, installApp } = usePWA();
+  const t = useTranslations();
 
-  const { isOnline, cacheWeatherData, getCachedWeatherData, clearExpiredCache } = useOfflineWeather();
+  const { isOnline, saveWeatherData, getCachedWeatherData } = useOfflineWeather();
 
-  // Initialize app
-  useEffect(() => {
-    // Check for API key
+  const fetchWeatherData = useCallback(async (city: string) => {
     if (!weatherApi.hasApiKey()) {
-      setShowApiKeyModal(true);
+      setError('Please set your API key first');
       return;
     }
 
-    // Load saved temperature unit
-    const savedUnit = localStorage.getItem('temperatureUnit') as TemperatureUnit;
-    if (savedUnit) {
-      setTemperatureUnit(savedUnit);
+    if (!city.trim()) {
+      setError('Please enter a city name');
+      return;
     }
 
-    // Load last searched city or use geolocation
-    const lastCity = localStorage.getItem('lastSearchedCity');
-    if (lastCity) {
-      searchWeather(lastCity);
-    } else {
-      handleLocationSearch();
-    }
-  }, []);
-
-  // Update background based on weather conditions
-  useEffect(() => {
-    if (currentWeather) {
-      const isDayTime = isDay(
-        Date.now() / 1000,
-        currentWeather.sys.sunrise,
-        currentWeather.sys.sunset,
-        currentWeather.timezone
-      );
-      
-      const condition = getWeatherCondition(currentWeather.weather[0].main, isDayTime);
-      const bgClass = getBackgroundClass(condition);
-      setBackgroundCondition(bgClass);
-      setWeatherCondition(condition);
-    }
-  }, [currentWeather]);
-
-  const handleApiKeySet = (apiKey: string) => {
-    weatherApi.setApiKey(apiKey);
-    setShowApiKeyModal(false);
+    setLoading(true);
     setError(null);
-    
-    // Try to load weather for user's location
-    handleLocationSearch();
-    
-    toast({
-      title: "API Key Set",
-      description: "Successfully connected to OpenWeatherMap.",
-    });
-  };
-
-  const searchWeather = useCallback(async (city: string) => {
-    setIsLoading(true);
-    setError(null);
-    setIsUsingCachedData(false);
-
-    // Clear expired cache first
-    clearExpiredCache();
-
-    // Check for cached data if offline or as fallback
-    if (!isOnline) {
-      const cachedData = getCachedWeatherData(city);
-      if (cachedData) {
-        setCurrentWeather(cachedData.weather);
-        setForecast(cachedData.forecast);
-        setIsUsingCachedData(true);
-        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
-        setIsLoading(false);
-        
-        toast({
-          title: "Offline Mode",
-          description: `Showing cached weather for ${cachedData.weather.name}`,
-        });
-        return;
-      } else {
-        setError('No cached data available for this city while offline');
-        setIsLoading(false);
-        return;
-      }
-    }
 
     try {
+      const languageMap: Record<string, string> = {
+        en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it', pt: 'pt', ru: 'ru', zh: 'zh',
+      };
+      
+      const lang = languageMap[preferences.language] || 'en';
+      
       const [weatherData, forecastData] = await Promise.all([
-        weatherApi.getCurrentWeather(city),
-        weatherApi.getForecast(city)
+        weatherApi.getCurrentWeather(city, lang),
+        weatherApi.getForecast(city, lang)
       ]);
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
-      setLastUpdated(new Date().toLocaleString());
-      
-      // Cache the data for offline use
-      cacheWeatherData(weatherData, forecastData, city);
-      
-      // Save last searched city
+      setCurrentCity(city);
+      saveWeatherData(weatherData, forecastData);
       localStorage.setItem('lastSearchedCity', city);
       
-      toast({
-        title: "Weather Updated",
-        description: `Showing weather for ${weatherData.name}, ${weatherData.sys.country}`,
-      });
+      checkForExtremeWeather(weatherData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch weather data';
-      
-      // Try to show cached data as fallback
-      const cachedData = getCachedWeatherData(city);
-      if (cachedData) {
-        setCurrentWeather(cachedData.weather);
-        setForecast(cachedData.forecast);
-        setIsUsingCachedData(true);
-        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
-        
-        toast({
-          title: "Using Cached Data",
-          description: `Network error. Showing cached weather for ${cachedData.weather.name}`,
-          variant: "destructive",
-        });
-      } else {
-        setError(errorMessage);
-        setCurrentWeather(null);
-        setForecast(null);
-        
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, getCachedWeatherData, cacheWeatherData, clearExpiredCache]);
-
-  const handleLocationSearch = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setIsUsingCachedData(false);
-
-    if (!isOnline) {
-      // Try to use last searched city from cache
-      const lastCity = localStorage.getItem('lastSearchedCity');
-      if (lastCity) {
-        await searchWeather(lastCity);
-        return;
-      } else {
-        setError('Location services require internet connection');
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    try {
-      const location = await getLocationFromBrowser();
-      const [weatherData, forecastData] = await Promise.all([
-        weatherApi.getCurrentWeatherByCoords(location.latitude, location.longitude),
-        weatherApi.getForecastByCoords(location.latitude, location.longitude)
-      ]);
-
-      setCurrentWeather(weatherData);
-      setForecast(forecastData);
-      setLastUpdated(new Date().toLocaleString());
-      
-      // Cache the data for offline use
-      cacheWeatherData(weatherData, forecastData, weatherData.name);
-      
-      // Save the city name for future reference
-      localStorage.setItem('lastSearchedCity', weatherData.name);
-      
-      toast({
-        title: "Location Found",
-        description: `Showing weather for your current location: ${weatherData.name}`,
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to get location';
       setError(errorMessage);
       
-      toast({
-        title: "Location Error", 
-        description: errorMessage,
-        variant: "destructive",
-      });
+      const cached = getCachedWeatherData();
+      if (cached) {
+        setCurrentWeather(cached.weather);
+        setForecast(cached.forecast);
+        setCurrentCity(cached.city);
+        toast.info('Showing cached weather data');
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [isOnline, searchWeather, cacheWeatherData]);
+  }, [saveWeatherData, getCachedWeatherData, preferences.language, checkForExtremeWeather]);
 
-  const handleRefresh = () => {
-    if (currentWeather) {
-      searchWeather(currentWeather.name);
-    }
-  };
+  // Sync temperature unit with preferences
+  useEffect(() => {
+    setTemperatureUnit(preferences.temperature_unit);
+  }, [preferences.temperature_unit]);
 
-  const handleTemperatureToggle = (unit: TemperatureUnit) => {
-    setTemperatureUnit(unit);
-    localStorage.setItem('temperatureUnit', unit);
-  };
-
-  const handleCityAdd = useCallback(async (city: string) => {
-    await searchWeather(city);
-  }, [searchWeather]);
-
-  const handleRetry = () => {
-    setError(null);
+  // Load default city or last searched city
+  useEffect(() => {
+    const defaultCity = preferences.default_city;
     const lastCity = localStorage.getItem('lastSearchedCity');
-    if (lastCity) {
-      searchWeather(lastCity);
-    } else {
-      handleLocationSearch();
+    
+    if (defaultCity) {
+      fetchWeatherData(defaultCity);
+    } else if (lastCity) {
+      fetchWeatherData(lastCity);
+    }
+  }, [fetchWeatherData, preferences.default_city]);
+
+  const handleLocationSearch = async () => {
+    try {
+      const location = await getLocationFromBrowser();
+      const weatherData = await weatherApi.getCurrentWeatherByCoords(location.latitude, location.longitude);
+      fetchWeatherData(weatherData.name);
+    } catch (err) {
+      toast.error('Failed to get your location');
     }
   };
 
-  console.log('WeatherApp about to render with backgroundCondition:', backgroundCondition);
-  
-  try {
-    return (
-      <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
-      {/* Animated Weather Background */}
-      <WeatherBackground condition={weatherCondition} />
-      {/* Modern Navigation Bar */}
-      <nav className="relative z-10 p-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo & Brand */}
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <img 
-                src={cloudcastLogo} 
-                alt="CloudCast Logo" 
-                className="h-12 w-12 object-contain drop-shadow-lg"
-              />
-              <div className="absolute -inset-1 bg-gradient-primary rounded-full opacity-20 blur-sm"></div>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold gradient-text">CloudCast</h1>
-              <p className="text-sm text-muted-foreground font-medium">Modern Weather</p>
-            </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background to-background/80 relative overflow-hidden">
+      <WeatherBackground condition={currentWeather ? 'clear' : 'clear'} />
+      
+      <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-white">CloudCast</h1>
+            {isInstallable && (
+              <Button onClick={installApp} size="sm" className="bg-primary/20 hover:bg-primary/30 text-white border border-white/20">
+                <Download className="h-4 w-4 mr-2" />
+                Install App
+              </Button>
+            )}
           </div>
-          
-          {/* Controls */}
-          <div className="flex items-center space-x-3">
-            <TemperatureToggle 
-              unit={temperatureUnit} 
-              onToggle={handleTemperatureToggle} 
-            />
+          <div className="flex items-center gap-2">
+            <TemperatureToggle unit={temperatureUnit} onToggle={setTemperatureUnit} />
+            <VoiceSearch onResult={fetchWeatherData} disabled={loading} />
+            <SettingsModal />
+            <AuthModal />
             <ThemeToggle />
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content Container */}
-      <main className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
-        {/* Hero Search Section */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Weather Made Beautiful
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Experience precise weather forecasts with our elegant, modern interface
-            </p>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto">
-            <SearchBar 
-              onSearch={searchWeather}
-              onLocationSearch={handleLocationSearch}
-              onRefresh={handleRefresh}
-              isLoading={isLoading}
-              currentCity={currentWeather?.name || ''}
-            />
+            <ApiKeyModal />
           </div>
         </div>
 
-        {/* Status Indicators */}
-        <OfflineIndicator 
-          isOnline={isOnline}
-          isUsingCachedData={isUsingCachedData}
-          lastUpdated={lastUpdated}
-        />
-
-          {/* Popular Cities */}
-          <div className="max-w-6xl mx-auto">
-            <PopularCities 
-              onCitySelect={searchWeather}
-              isLoading={isLoading}
-            />
-          </div>
-
-          {/* Multi-City Dashboard */}
-          <div className="max-w-6xl mx-auto">
-            <CityDashboard 
-              currentWeather={currentWeather}
-              temperatureUnit={temperatureUnit}
-              onAddCity={handleCityAdd}
-            />
-          </div>
-
-          {/* Local Time Widget */}
-          {currentWeather && (
-            <div className="max-w-md mx-auto">
-              <LocalTimeWidget 
-                cityName={currentWeather.name}
-                timezoneOffset={currentWeather.timezone}
-                country={currentWeather.sys.country}
-              />
-            </div>
-          )}
-
-        {/* Weather Content */}
-        <div className="space-y-8">
-          {error ? (
-            <div className="max-w-2xl mx-auto">
-              <ErrorMessage 
-                message={error}
-                onRetry={handleRetry}
-                onShowApiKeyModal={() => setShowApiKeyModal(true)}
-                showApiKeyButton={!weatherApi.hasApiKey()}
-              />
-            </div>
-          ) : isLoading ? (
-            <div className="space-y-8">
-              <div className="max-w-4xl mx-auto">
-                <SkeletonWeatherCard />
-              </div>
-              <div className="max-w-6xl mx-auto">
-                <LoadingSpinner message="Fetching beautiful weather data..." />
-              </div>
-            </div>
-          ) : currentWeather && forecast ? (
-            <div className="space-y-8">
-              {/* Main Weather Card */}
-              <div className="max-w-4xl mx-auto">
-                <WeatherCard 
-                  weather={currentWeather} 
-                  temperatureUnit={temperatureUnit} 
-                />
-              </div>
-              
-              {/* Hourly Forecast */}
-              <div className="max-w-6xl mx-auto">
-                <OptimizedHourlyForecast 
-                  forecast={forecast} 
-                  temperatureUnit={temperatureUnit}
-                />
-              </div>
-              
-              {/* Forecast Chart */}
-              <div className="max-w-6xl mx-auto">
-                <ForecastChart 
-                  forecast={forecast} 
-                  temperatureUnit={temperatureUnit} 
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-2xl mx-auto text-center py-20">
-              <div className="modern-card p-12">
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto opacity-20"></div>
-                  <h3 className="text-2xl font-semibold text-foreground">
-                    Ready to explore?
-                  </h3>
-                  <p className="text-muted-foreground text-lg">
-                    Search for any city or use your current location to get started
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="grid gap-6 mb-8">
+          <SearchBar onSearch={fetchWeatherData} disabled={loading} />
+          <PopularCities onCitySelect={fetchWeatherData} isLoading={loading} />
         </div>
+
+        <OfflineIndicator isOnline={isOnline} />
+
+        {error ? (
+          <ErrorMessage message={error} onRetry={() => fetchWeatherData(currentCity)} />
+        ) : loading ? (
+          <LoadingSpinner />
+        ) : currentWeather && forecast ? (
+          <div className="space-y-8">
+            <WeatherCard weather={currentWeather} temperatureUnit={temperatureUnit} />
+            <LocalTimeWidget cityName={currentWeather.name} timezoneOffset={currentWeather.timezone} country={currentWeather.sys.country} />
+            <CityDashboard currentWeather={currentWeather} temperatureUnit={temperatureUnit} onAddCity={fetchWeatherData} />
+            <ForecastChart forecast={forecast} temperatureUnit={temperatureUnit} />
+          </div>
+        ) : null}
       </main>
-
-      {/* API Key Modal */}
-      <ApiKeyModal 
-        isOpen={showApiKeyModal} 
-        onApiKeySet={handleApiKeySet} 
-      />
     </div>
   );
-  } catch (error) {
-    console.error('WeatherApp render error:', error);
-    return <div>Error loading weather app: {String(error)}</div>;
-  }
 };

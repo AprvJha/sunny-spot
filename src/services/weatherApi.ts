@@ -50,27 +50,36 @@ class WeatherApiService {
     return response.json();
   }
 
-  async getCurrentWeather(city: string): Promise<WeatherData> {
-    return this.makeRequest('/weather', { q: city });
+  async getCurrentWeather(city: string, lang?: string): Promise<WeatherData> {
+    const params: Record<string, string> = { q: city };
+    if (lang) params.lang = lang;
+    return this.makeRequest('/weather', params);
   }
 
-  async getCurrentWeatherByCoords(lat: number, lon: number): Promise<WeatherData> {
-    return this.makeRequest('/weather', { 
+  async getCurrentWeatherByCoords(lat: number, lon: number, lang?: string): Promise<WeatherData> {
+    const params: Record<string, string> = { 
       lat: lat.toString(), 
       lon: lon.toString() 
-    });
+    };
+    if (lang) params.lang = lang;
+    return this.makeRequest('/weather', params);
   }
 
-  async getForecast(city: string): Promise<ForecastData> {
-    return this.makeRequest('/forecast', { q: city });
+  async getForecast(city: string, lang?: string): Promise<ForecastData> {
+    const params: Record<string, string> = { q: city };
+    if (lang) params.lang = lang;
+    return this.makeRequest('/forecast', params);
   }
 
-  async getForecastByCoords(lat: number, lon: number): Promise<ForecastData> {
-    return this.makeRequest('/forecast', { 
+  async getForecastByCoords(lat: number, lon: number, lang?: string): Promise<ForecastData> {
+    const params: Record<string, string> = { 
       lat: lat.toString(), 
       lon: lon.toString() 
-    });
+    };
+    if (lang) params.lang = lang;
+    return this.makeRequest('/forecast', params);
   }
+
 
 }
 
