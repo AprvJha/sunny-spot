@@ -21,6 +21,7 @@ import { toast } from '@/hooks/use-toast';
 import cloudcastLogo from '@/assets/cloudcast-logo.png';
 
 export const WeatherApp = () => {
+  console.log('WeatherApp component starting to render...');
   console.log('CloudCast logo imported:', cloudcastLogo);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
@@ -249,8 +250,11 @@ export const WeatherApp = () => {
     }
   };
 
-  return (
-    <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
+  console.log('WeatherApp about to render with backgroundCondition:', backgroundCondition);
+  
+  try {
+    return (
+      <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
       {/* Animated Weather Background */}
       <WeatherBackground condition={weatherCondition} />
       {/* Modern Navigation Bar */}
@@ -414,4 +418,8 @@ export const WeatherApp = () => {
       />
     </div>
   );
+  } catch (error) {
+    console.error('WeatherApp render error:', error);
+    return <div>Error loading weather app: {String(error)}</div>;
+  }
 };
