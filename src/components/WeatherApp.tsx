@@ -351,7 +351,7 @@ export const WeatherApp = () => {
                 message={error}
                 onRetry={handleRetry}
                 onShowApiKeyModal={() => setShowApiKeyModal(true)}
-                showApiKeyButton={weatherApi.hasApiKey()}
+                showApiKeyButton={!weatherApi.hasApiKey()}
               />
             </div>
           ) : isLoading ? (
