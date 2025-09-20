@@ -2,25 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import { WeatherData, ForecastData, TemperatureUnit, WeatherCondition } from '../types/weather';
 import { weatherApi, getLocationFromBrowser } from '../services/weatherApi';
 import { getWeatherCondition, getBackgroundClass, isDay } from '../utils/weatherUtils';
+import { useOfflineWeather } from '../hooks/useOfflineWeather';
 import { ApiKeyModal } from './ApiKeyModal';
 import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
 import { OptimizedHourlyForecast } from './OptimizedHourlyForecast';
-import { LoadingSpinner } from './LoadingSpinner';
+import { CityDashboard } from './CityDashboard';
+import { LocalTimeWidget } from './LocalTimeWidget';
+import { PopularCities } from './PopularCities';
+import { WeatherBackground } from './WeatherBackground';
+import { OfflineIndicator } from './OfflineIndicator';
+import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
 import { TemperatureToggle } from './TemperatureToggle';
-import { WeatherBackground } from './WeatherBackground';
-import { CityDashboard, addCityToDashboard } from './CityDashboard';
-import { LocalTimeWidget } from './LocalTimeWidget';
-import { PopularCities } from './PopularCities';
 import { toast } from '@/hooks/use-toast';
-import { Button } from './ui/button';
-import { Plus } from 'lucide-react';
-import weatherLogo from '@/assets/weather-logo.png';
+import cloudcastLogo from '@/assets/cloudcast-logo.png';
 
 export const WeatherApp = () => {
+  console.log('CloudCast logo imported:', cloudcastLogo);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,26 +30,23 @@ export const WeatherApp = () => {
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
   const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-hero');
   const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('clear');
-  const [showDashboard, setShowDashboard] = useState(false);
+  const [isUsingCachedData, setIsUsingCachedData] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const { isOnline, cacheWeatherData, getCachedWeatherData, clearExpiredCache } = useOfflineWeather();
 
   // Initialize app
   useEffect(() => {
-    // Load saved temperature unit
-    const savedUnit = localStorage.getItem('temperatureUnit') as TemperatureUnit;
-    if (savedUnit) {
-      setTemperatureUnit(savedUnit);
-    }
-
-    // Load theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    }
-
     // Check for API key
     if (!weatherApi.hasApiKey()) {
       setShowApiKeyModal(true);
       return;
+    }
+
+    // Load saved temperature unit
+    const savedUnit = localStorage.getItem('temperatureUnit') as TemperatureUnit;
+    if (savedUnit) {
+      setTemperatureUnit(savedUnit);
     }
 
     // Load last searched city or use geolocation
@@ -94,6 +92,32 @@ export const WeatherApp = () => {
   const searchWeather = useCallback(async (city: string) => {
     setIsLoading(true);
     setError(null);
+    setIsUsingCachedData(false);
+
+    // Clear expired cache first
+    clearExpiredCache();
+
+    // Check for cached data if offline or as fallback
+    if (!isOnline) {
+      const cachedData = getCachedWeatherData(city);
+      if (cachedData) {
+        setCurrentWeather(cachedData.weather);
+        setForecast(cachedData.forecast);
+        setIsUsingCachedData(true);
+        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
+        setIsLoading(false);
+        
+        toast({
+          title: "Offline Mode",
+          description: `Showing cached weather for ${cachedData.weather.name}`,
+        });
+        return;
+      } else {
+        setError('No cached data available for this city while offline');
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       const [weatherData, forecastData] = await Promise.all([
@@ -103,6 +127,10 @@ export const WeatherApp = () => {
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
+      setLastUpdated(new Date().toLocaleString());
+      
+      // Cache the data for offline use
+      cacheWeatherData(weatherData, forecastData, city);
       
       // Save last searched city
       localStorage.setItem('lastSearchedCity', city);
@@ -113,23 +141,53 @@ export const WeatherApp = () => {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch weather data';
-      setError(errorMessage);
-      setCurrentWeather(null);
-      setForecast(null);
       
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      // Try to show cached data as fallback
+      const cachedData = getCachedWeatherData(city);
+      if (cachedData) {
+        setCurrentWeather(cachedData.weather);
+        setForecast(cachedData.forecast);
+        setIsUsingCachedData(true);
+        setLastUpdated(new Date(cachedData.timestamp).toLocaleString());
+        
+        toast({
+          title: "Using Cached Data",
+          description: `Network error. Showing cached weather for ${cachedData.weather.name}`,
+          variant: "destructive",
+        });
+      } else {
+        setError(errorMessage);
+        setCurrentWeather(null);
+        setForecast(null);
+        
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isOnline, getCachedWeatherData, cacheWeatherData, clearExpiredCache]);
 
   const handleLocationSearch = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setIsUsingCachedData(false);
+
+    if (!isOnline) {
+      // Try to use last searched city from cache
+      const lastCity = localStorage.getItem('lastSearchedCity');
+      if (lastCity) {
+        await searchWeather(lastCity);
+        return;
+      } else {
+        setError('Location services require internet connection');
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       const location = await getLocationFromBrowser();
@@ -140,6 +198,10 @@ export const WeatherApp = () => {
 
       setCurrentWeather(weatherData);
       setForecast(forecastData);
+      setLastUpdated(new Date().toLocaleString());
+      
+      // Cache the data for offline use
+      cacheWeatherData(weatherData, forecastData, weatherData.name);
       
       // Save the city name for future reference
       localStorage.setItem('lastSearchedCity', weatherData.name);
@@ -160,7 +222,7 @@ export const WeatherApp = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isOnline, searchWeather, cacheWeatherData]);
 
   const handleRefresh = () => {
     if (currentWeather) {
@@ -168,28 +230,14 @@ export const WeatherApp = () => {
     }
   };
 
-  const addToFavorites = async () => {
-    if (!currentWeather) return;
-    
-    const success = await addCityToDashboard(currentWeather.name);
-    if (success) {
-      toast({
-        title: "City Added",
-        description: `${currentWeather.name} has been added to your dashboard.`,
-      });
-    } else {
-      toast({
-        title: "Already Added",
-        description: `${currentWeather.name} is already in your dashboard.`,
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleTemperatureToggle = (unit: TemperatureUnit) => {
     setTemperatureUnit(unit);
     localStorage.setItem('temperatureUnit', unit);
   };
+
+  const handleCityAdd = useCallback(async (city: string) => {
+    await searchWeather(city);
+  }, [searchWeather]);
 
   const handleRetry = () => {
     setError(null);
@@ -201,44 +249,31 @@ export const WeatherApp = () => {
     }
   };
 
-  const handleCitySelect = (cityName: string) => {
-    searchWeather(cityName);
-    setShowDashboard(false);
-  };
-
   return (
     <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
-      {/* Weather Background Animation */}
+      {/* Animated Weather Background */}
       <WeatherBackground condition={weatherCondition} />
-      {/* Navigation Bar */}
+      {/* Modern Navigation Bar */}
       <nav className="relative z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center space-x-4">
             <div className="relative">
               <img 
-                src={weatherLogo} 
-                alt="Weather App Logo" 
+                src={cloudcastLogo} 
+                alt="CloudCast Logo" 
                 className="h-12 w-12 object-contain drop-shadow-lg"
               />
               <div className="absolute -inset-1 bg-gradient-primary rounded-full opacity-20 blur-sm"></div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold gradient-text">Weather App</h1>
-              <p className="text-sm text-muted-foreground font-medium">Simple & Clean</p>
+              <h1 className="text-2xl font-bold gradient-text">CloudCast</h1>
+              <p className="text-sm text-muted-foreground font-medium">Modern Weather</p>
             </div>
           </div>
           
           {/* Controls */}
           <div className="flex items-center space-x-3">
-            <Button
-              variant={showDashboard ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowDashboard(!showDashboard)}
-              className="gap-2"
-            >
-              Dashboard
-            </Button>
             <TemperatureToggle 
               unit={temperatureUnit} 
               onToggle={handleTemperatureToggle} 
@@ -248,98 +283,106 @@ export const WeatherApp = () => {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main Content Container */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
-        {showDashboard ? (
-          <div className="space-y-8">
-            <CityDashboard 
-              temperatureUnit={temperatureUnit}
-              onCitySelect={handleCitySelect}
+        {/* Hero Search Section */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+              Weather Made Beautiful
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Experience precise weather forecasts with our elegant, modern interface
+            </p>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="max-w-2xl mx-auto">
+            <SearchBar 
+              onSearch={searchWeather}
+              onLocationSearch={handleLocationSearch}
+              onRefresh={handleRefresh}
+              isLoading={isLoading}
+              currentCity={currentWeather?.name || ''}
             />
           </div>
-        ) : (
-          <>
-            {/* Hero Search Section */}
-            <div className="mb-12">
-              <div className="text-center mb-8">
-                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-                  Weather Made Simple
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Get precise weather forecasts for any location
-                </p>
-              </div>
-              
-              {/* Search Bar */}
-              <div className="max-w-2xl mx-auto">
-                <SearchBar 
-                  onSearch={searchWeather}
-                  onLocationSearch={handleLocationSearch}
-                  onRefresh={handleRefresh}
-                  isLoading={isLoading}
-                  currentCity={currentWeather?.name || ''}
-                />
-              </div>
+        </div>
+
+        {/* Status Indicators */}
+        <OfflineIndicator 
+          isOnline={isOnline}
+          isUsingCachedData={isUsingCachedData}
+          lastUpdated={lastUpdated}
+        />
+
+          {/* Popular Cities */}
+          <div className="max-w-6xl mx-auto">
+            <PopularCities 
+              onCitySelect={searchWeather}
+              isLoading={isLoading}
+            />
+          </div>
+
+          {/* Multi-City Dashboard */}
+          <div className="max-w-6xl mx-auto">
+            <CityDashboard 
+              currentWeather={currentWeather}
+              temperatureUnit={temperatureUnit}
+              onAddCity={handleCityAdd}
+            />
+          </div>
+
+          {/* Local Time Widget */}
+          {currentWeather && (
+            <div className="max-w-md mx-auto">
+              <LocalTimeWidget 
+                cityName={currentWeather.name}
+                timezoneOffset={currentWeather.timezone}
+                country={currentWeather.sys.country}
+              />
             </div>
+          )}
 
-            {/* Popular Cities Quick Access */}
-            {!currentWeather && !isLoading && (
-              <div className="mb-12">
-                <PopularCities onCitySelect={searchWeather} />
-              </div>
-            )}
-
-            {/* Weather Content */}
-            <div className="space-y-8">
+        {/* Weather Content */}
+        <div className="space-y-8">
           {error ? (
             <div className="max-w-2xl mx-auto">
               <ErrorMessage 
                 message={error}
                 onRetry={handleRetry}
                 onShowApiKeyModal={() => setShowApiKeyModal(true)}
-                showApiKeyButton={!weatherApi.hasApiKey()}
+                showApiKeyButton={weatherApi.hasApiKey()}
               />
             </div>
           ) : isLoading ? (
-            <div className="max-w-4xl mx-auto">
-              <LoadingSpinner message="Fetching weather data..." />
+            <div className="space-y-8">
+              <div className="max-w-4xl mx-auto">
+                <SkeletonWeatherCard />
+              </div>
+              <div className="max-w-6xl mx-auto">
+                <LoadingSpinner message="Fetching beautiful weather data..." />
+              </div>
             </div>
           ) : currentWeather && forecast ? (
             <div className="space-y-8">
-              {/* Main Weather Card with Add to Favorites */}
-              <div className="max-w-4xl mx-auto space-y-4">
-                <div className="flex justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={addToFavorites}
-                    className="gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add to Dashboard
-                  </Button>
-                </div>
+              {/* Main Weather Card */}
+              <div className="max-w-4xl mx-auto">
                 <WeatherCard 
                   weather={currentWeather} 
                   temperatureUnit={temperatureUnit} 
                 />
               </div>
               
-              {/* Local Time Widget */}
-              <div className="max-w-4xl mx-auto">
-                <LocalTimeWidget 
-                  timezone={currentWeather.timezone}
-                  cityName={currentWeather.name}
+              {/* Hourly Forecast */}
+              <div className="max-w-6xl mx-auto">
+                <OptimizedHourlyForecast 
+                  forecast={forecast} 
+                  temperatureUnit={temperatureUnit}
                 />
               </div>
               
-              {/* Enhanced Forecast Section */}
-              <div className="max-w-6xl mx-auto space-y-8">
-                <OptimizedHourlyForecast 
-                  forecast={forecast} 
-                  temperatureUnit={temperatureUnit} 
-                />
-                
+              {/* Forecast Chart */}
+              <div className="max-w-6xl mx-auto">
                 <ForecastChart 
                   forecast={forecast} 
                   temperatureUnit={temperatureUnit} 
@@ -361,8 +404,7 @@ export const WeatherApp = () => {
               </div>
             </div>
           )}
-          </>
-        )}
+        </div>
       </main>
 
       {/* API Key Modal */}
