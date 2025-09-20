@@ -11,7 +11,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
 import { TemperatureToggle } from './TemperatureToggle';
 import { toast } from '@/hooks/use-toast';
-import weatherLogo from '@/assets/weather-logo.png';
+import weatherLogo from '@/assets/weather-logo.png'; // Force rebuild
 
 export const WeatherApp = () => {
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
