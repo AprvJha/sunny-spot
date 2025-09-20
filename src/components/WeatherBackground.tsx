@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { WeatherCondition } from '../types/weather';
 
 interface WeatherBackgroundProps {
@@ -6,101 +6,102 @@ interface WeatherBackgroundProps {
 }
 
 export const WeatherBackground = ({ condition }: WeatherBackgroundProps) => {
-  const rainRef = useRef<HTMLDivElement>(null);
-  const cloudsRef = useRef<HTMLDivElement>(null);
-  const starsRef = useRef<HTMLDivElement>(null);
+  const [showAnimation, setShowAnimation] = useState(false);
 
   useEffect(() => {
-    // Clear existing animations
-    if (rainRef.current) rainRef.current.innerHTML = '';
-    if (cloudsRef.current) cloudsRef.current.innerHTML = '';
-    if (starsRef.current) starsRef.current.innerHTML = '';
-
-    switch (condition) {
-      case 'rain':
-        createRaindrops();
-        break;
-      case 'clouds':
-        createClouds();
-        break;
-      case 'night':
-        createStars();
-        break;
-      default:
-        break;
-    }
+    setShowAnimation(true);
+    return () => setShowAnimation(false);
   }, [condition]);
 
   const createRaindrops = () => {
-    if (!rainRef.current) return;
-    
+    const raindrops = [];
     for (let i = 0; i < 100; i++) {
-      const raindrop = document.createElement('div');
-      raindrop.className = 'raindrop';
-      raindrop.style.left = Math.random() * 100 + '%';
-      raindrop.style.animationDelay = Math.random() * 2 + 's';
-      raindrop.style.animationDuration = (Math.random() * 0.5 + 0.5) + 's';
-      rainRef.current.appendChild(raindrop);
+      raindrops.push(
+        <div
+          key={i}
+          className="raindrop"
+          style={{
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 2}s`,
+            animationDuration: `${0.5 + Math.random() * 0.5}s`
+          }}
+        />
+      );
     }
+    return raindrops;
   };
 
   const createClouds = () => {
-    if (!cloudsRef.current) return;
-    
-    for (let i = 0; i < 8; i++) {
-      const cloud = document.createElement('div');
-      cloud.className = 'cloud';
-      
-      const size = Math.random() * 80 + 40;
-      cloud.style.width = size + 'px';
-      cloud.style.height = size * 0.7 + 'px';
-      cloud.style.top = Math.random() * 40 + '%';
-      cloud.style.animationDuration = (Math.random() * 20 + 15) + 's';
-      cloud.style.animationDelay = Math.random() * 10 + 's';
-      
-      // Add cloud layers
-      const cloudLayer = document.createElement('div');
-      cloudLayer.style.position = 'absolute';
-      cloudLayer.style.top = size * 0.3 + 'px';
-      cloudLayer.style.left = size * 0.3 + 'px';
-      cloudLayer.style.width = size * 0.8 + 'px';
-      cloudLayer.style.height = size * 0.5 + 'px';
-      cloudLayer.style.background = 'rgba(255, 255, 255, 0.06)';
-      cloudLayer.style.borderRadius = '50px';
-      cloud.appendChild(cloudLayer);
-      
-      cloudsRef.current.appendChild(cloud);
+    const clouds = [];
+    for (let i = 0; i < 5; i++) {
+      clouds.push(
+        <div
+          key={i}
+          className="cloud"
+          style={{
+            top: `${10 + Math.random() * 30}%`,
+            width: `${100 + Math.random() * 150}px`,
+            height: `${40 + Math.random() * 30}px`,
+            animationDuration: `${20 + Math.random() * 20}s`,
+            animationDelay: `${Math.random() * 10}s`
+          }}
+        />
+      );
     }
+    return clouds;
   };
 
   const createStars = () => {
-    if (!starsRef.current) return;
-    
-    for (let i = 0; i < 150; i++) {
-      const star = document.createElement('div');
-      star.className = 'star';
-      star.style.left = Math.random() * 100 + '%';
-      star.style.top = Math.random() * 70 + '%';
-      star.style.animationDelay = Math.random() * 3 + 's';
-      star.style.animationDuration = (Math.random() * 2 + 2) + 's';
-      
-      // Vary star sizes
-      const size = Math.random() * 2 + 1;
-      star.style.width = size + 'px';
-      star.style.height = size + 'px';
-      
-      starsRef.current.appendChild(star);
+    const stars = [];
+    for (let i = 0; i < 50; i++) {
+      stars.push(
+        <div
+          key={i}
+          className="star"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 50}%`,
+            animationDelay: `${Math.random() * 3}s`,
+            animationDuration: `${2 + Math.random() * 2}s`
+          }}
+        />
+      );
     }
+    return stars;
   };
+
+  if (!showAnimation) return null;
 
   return (
     <>
       {condition === 'rain' && (
-        <div ref={rainRef} className="rain-animation" />
+        <div className="rain-animation">
+          {createRaindrops()}
+        </div>
+      )}
+      
+      {condition === 'storm' && (
+        <div className="rain-animation">
+          {createRaindrops()}
+          <div className="absolute inset-0 opacity-20">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-full h-full bg-white"
+                style={{
+                  animation: `flash ${2 + Math.random() * 3}s ease-in-out infinite`,
+                  animationDelay: `${Math.random() * 5}s`
+                }}
+              />
+            ))}
+          </div>
+        </div>
       )}
       
       {condition === 'clouds' && (
-        <div ref={cloudsRef} className="cloud-animation" />
+        <div className="cloud-animation">
+          {createClouds()}
+        </div>
       )}
       
       {condition === 'clear' && (
@@ -114,9 +115,59 @@ export const WeatherBackground = ({ condition }: WeatherBackgroundProps) => {
           <div className="moon-animation">
             <div className="moon" />
           </div>
-          <div ref={starsRef} className="stars-animation" />
+          <div className="stars-animation">
+            {createStars()}
+          </div>
         </>
+      )}
+      
+      {condition === 'snow' && (
+        <div className="rain-animation">
+          {Array.from({ length: 80 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute bg-white rounded-full opacity-80"
+              style={{
+                left: `${Math.random() * 100}%`,
+                width: `${3 + Math.random() * 4}px`,
+                height: `${3 + Math.random() * 4}px`,
+                animation: `snowfall ${3 + Math.random() * 2}s linear infinite`,
+                animationDelay: `${Math.random() * 3}s`
+              }}
+            />
+          ))}
+        </div>
       )}
     </>
   );
 };
+
+// Add additional keyframes for snow and flash effects
+const additionalStyles = `
+  @keyframes snowfall {
+    0% {
+      transform: translateY(-100vh) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh) rotate(360deg);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes flash {
+    0%, 90%, 100% {
+      opacity: 0;
+    }
+    5%, 85% {
+      opacity: 0.2;
+    }
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = additionalStyles;
+  document.head.appendChild(styleElement);
+}

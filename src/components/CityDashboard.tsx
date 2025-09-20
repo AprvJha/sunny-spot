@@ -1,347 +1,208 @@
 import { useState, useEffect } from 'react';
 import { WeatherData, TemperatureUnit } from '../types/weather';
-import { convertTemperature, getTemperatureSymbol, capitalizeWords } from '../utils/weatherUtils';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Plus, X, MapPin, Thermometer, Droplets, Wind } from 'lucide-react';
+import { weatherApi } from '../services/weatherApi';
+import { WeatherCard } from './WeatherCard';
+import { LoadingSpinner } from './LoadingSpinner';
+import { X } from 'lucide-react';
+import { Button } from './ui/button';
 import { toast } from '@/hooks/use-toast';
 
-interface CityData {
-  weather: WeatherData;
-  timestamp: number;
-}
-
 interface CityDashboardProps {
-  currentWeather: WeatherData | null;
   temperatureUnit: TemperatureUnit;
-  onAddCity: (city: string) => void;
+  onCitySelect: (city: string) => void;
 }
 
-export const CityDashboard = ({ currentWeather, temperatureUnit, onAddCity }: CityDashboardProps) => {
-  const [savedCities, setSavedCities] = useState<CityData[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newCityName, setNewCityName] = useState('');
+interface SavedCity {
+  name: string;
+  weather: WeatherData;
+  lastUpdated: number;
+}
 
-  const tempSymbol = getTemperatureSymbol(temperatureUnit);
+export const CityDashboard = ({ temperatureUnit, onCitySelect }: CityDashboardProps) => {
+  const [savedCities, setSavedCities] = useState<SavedCity[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    loadCities();
+    loadSavedCities();
   }, []);
 
-  useEffect(() => {
-    if (currentWeather) {
-      updateCityInDashboard(currentWeather);
-    }
-  }, [currentWeather]);
-
-  const loadCities = () => {
-    try {
-      const saved = localStorage.getItem('dashboardCities');
-      if (saved) {
-        const cities = JSON.parse(saved);
+  const loadSavedCities = () => {
+    const stored = localStorage.getItem('savedCities');
+    if (stored) {
+      try {
+        const cities = JSON.parse(stored);
         setSavedCities(cities);
+        refreshCitiesWeather(cities);
+      } catch (error) {
+        console.error('Error loading saved cities:', error);
       }
-    } catch (error) {
-      console.error('Error loading saved cities:', error);
     }
   };
 
-  const saveCities = (cities: CityData[]) => {
-    try {
-      localStorage.setItem('dashboardCities', JSON.stringify(cities));
-      setSavedCities(cities);
-    } catch (error) {
-      console.error('Error saving cities:', error);
+  const refreshCitiesWeather = async (cities: SavedCity[]) => {
+    if (!weatherApi.hasApiKey()) return;
+    
+    setIsLoading(true);
+    const updatedCities: SavedCity[] = [];
+
+    for (const city of cities) {
+      try {
+        const weather = await weatherApi.getCurrentWeather(city.name);
+        updatedCities.push({
+          name: city.name,
+          weather,
+          lastUpdated: Date.now()
+        });
+      } catch (error) {
+        // Keep the old data if refresh fails
+        updatedCities.push(city);
+      }
     }
+
+    setSavedCities(updatedCities);
+    localStorage.setItem('savedCities', JSON.stringify(updatedCities));
+    setIsLoading(false);
   };
 
-  const updateCityInDashboard = (weather: WeatherData) => {
-    const cityExists = savedCities.find(city => 
-      city.weather.name.toLowerCase() === weather.name.toLowerCase()
-    );
-
-    if (cityExists) {
-      const updatedCities = savedCities.map(city =>
-        city.weather.name.toLowerCase() === weather.name.toLowerCase()
-          ? { weather, timestamp: Date.now() }
-          : city
-      );
-      saveCities(updatedCities);
+  const addCity = async (cityName: string) => {
+    if (!weatherApi.hasApiKey()) {
+      toast({
+        title: "API Key Required",
+        description: "Please set your OpenWeatherMap API key first.",
+        variant: "destructive",
+      });
+      return;
     }
-  };
 
-  const addCity = async () => {
-    if (!newCityName.trim()) return;
-
-    const cityExists = savedCities.find(city => 
-      city.weather.name.toLowerCase() === newCityName.toLowerCase()
-    );
-
-    if (cityExists) {
+    if (savedCities.some(city => city.name.toLowerCase() === cityName.toLowerCase())) {
       toast({
         title: "City Already Added",
-        description: `${newCityName} is already in your dashboard.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (savedCities.length >= 8) {
-      toast({
-        title: "Dashboard Full",
-        description: "You can only save up to 8 cities in your dashboard.",
+        description: `${cityName} is already in your dashboard.`,
         variant: "destructive",
       });
       return;
     }
 
     try {
-      await onAddCity(newCityName);
-      setNewCityName('');
-      setShowAddForm(false);
-      
+      setIsLoading(true);
+      const weather = await weatherApi.getCurrentWeather(cityName);
+      const newCity: SavedCity = {
+        name: weather.name,
+        weather,
+        lastUpdated: Date.now()
+      };
+
+      const updatedCities = [...savedCities, newCity];
+      setSavedCities(updatedCities);
+      localStorage.setItem('savedCities', JSON.stringify(updatedCities));
+
       toast({
         title: "City Added",
-        description: `${newCityName} has been added to your dashboard.`,
+        description: `${weather.name} has been added to your dashboard.`,
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add city to dashboard.",
+        description: "Failed to add city. Please check the name and try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const removeCity = (cityName: string) => {
-    const updatedCities = savedCities.filter(city => 
-      city.weather.name.toLowerCase() !== cityName.toLowerCase()
-    );
-    saveCities(updatedCities);
-    
+    const updatedCities = savedCities.filter(city => city.name !== cityName);
+    setSavedCities(updatedCities);
+    localStorage.setItem('savedCities', JSON.stringify(updatedCities));
+
     toast({
       title: "City Removed",
       description: `${cityName} has been removed from your dashboard.`,
     });
   };
 
-  const addCurrentCityToDashboard = () => {
-    if (!currentWeather) return;
-
-    const cityExists = savedCities.find(city => 
-      city.weather.name.toLowerCase() === currentWeather.name.toLowerCase()
-    );
-
-    if (cityExists) {
-      toast({
-        title: "City Already Added",
-        description: `${currentWeather.name} is already in your dashboard.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (savedCities.length >= 8) {
-      toast({
-        title: "Dashboard Full",
-        description: "You can only save up to 8 cities in your dashboard.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const newCities = [...savedCities, { weather: currentWeather, timestamp: Date.now() }];
-    saveCities(newCities);
-    
-    toast({
-      title: "City Added",
-      description: `${currentWeather.name} has been added to your dashboard.`,
-    });
+  const handleCityClick = (cityName: string) => {
+    onCitySelect(cityName);
   };
 
-  if (savedCities.length === 0 && !showAddForm) {
+  if (savedCities.length === 0) {
     return (
-      <Card className="bg-card/60 backdrop-blur-lg border border-white/10 shadow-card">
-        <CardContent className="p-6">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto opacity-20 flex items-center justify-center">
-              <MapPin className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Multi-City Dashboard</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Save your favorite cities for quick weather access
-              </p>
-              <div className="flex gap-2 justify-center">
-                {currentWeather && (
-                  <Button 
-                    onClick={addCurrentCityToDashboard}
-                    size="sm"
-                    className="bg-primary/90 hover:bg-primary"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add {currentWeather.name}
-                  </Button>
-                )}
-                <Button 
-                  onClick={() => setShowAddForm(true)}
-                  variant="outline"
-                  size="sm"
-                  className="border-white/20 hover:bg-white/10"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add City
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="modern-card p-8 text-center">
+        <div className="space-y-4">
+          <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto opacity-20"></div>
+          <h3 className="text-xl font-semibold text-foreground">
+            No cities in your dashboard
+          </h3>
+          <p className="text-muted-foreground">
+            Search for cities to add them to your personal weather dashboard
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="bg-card/60 backdrop-blur-lg border border-white/10 shadow-card">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              My Cities
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {savedCities.length}/8 cities saved
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {currentWeather && !savedCities.find(city => 
-              city.weather.name.toLowerCase() === currentWeather.name.toLowerCase()
-            ) && savedCities.length < 8 && (
-              <Button 
-                onClick={addCurrentCityToDashboard}
-                size="sm"
-                className="bg-primary/90 hover:bg-primary"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Current
-              </Button>
-            )}
-            {savedCities.length < 8 && (
-              <Button 
-                onClick={() => setShowAddForm(true)}
-                variant="outline"
-                size="sm"
-                className="border-white/20 hover:bg-white/10"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {showAddForm && (
-          <div className="mb-6 p-4 bg-background/20 rounded-lg border border-white/10">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCityName}
-                onChange={(e) => setNewCityName(e.target.value)}
-                placeholder="Enter city name..."
-                className="flex-1 px-3 py-2 bg-background/40 border border-white/20 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                onKeyPress={(e) => e.key === 'Enter' && addCity()}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground">Your Cities</h2>
+        {isLoading && <LoadingSpinner />}
+      </div>
+      
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {savedCities.map((city) => (
+          <div key={city.name} className="relative group">
+            <div 
+              className="cursor-pointer transform transition-all duration-300 hover:scale-105"
+              onClick={() => handleCityClick(city.name)}
+            >
+              <WeatherCard
+                weather={city.weather}
+                temperatureUnit={temperatureUnit}
+                compact={true}
               />
-              <Button onClick={addCity} size="sm" className="bg-primary/90 hover:bg-primary">
-                Add
-              </Button>
-              <Button 
-                onClick={() => {
-                  setShowAddForm(false);
-                  setNewCityName('');
-                }}
-                variant="outline"
-                size="sm"
-                className="border-white/20 hover:bg-white/10"
-              >
-                Cancel
-              </Button>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 bg-black/20 hover:bg-black/40 text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeCity(city.name);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {savedCities.map((cityData, index) => {
-            const { weather } = cityData;
-            const isStale = Date.now() - cityData.timestamp > 30 * 60 * 1000; // 30 minutes
-            
-            return (
-              <div
-                key={`${weather.name}-${index}`}
-                className="bg-background/30 backdrop-blur-sm rounded-lg p-4 border border-white/10 hover:bg-background/40 transition-all duration-300 cursor-pointer group hover-lift"
-                onClick={() => onAddCity(weather.name)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h4 className="font-medium text-sm">{weather.name}</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {weather.sys.country}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isStale && (
-                      <Badge variant="secondary" className="text-xs px-1 py-0">
-                        Old
-                      </Badge>
-                    )}
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeCity(weather.name);
-                      }}
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <img 
-                    src={`https://openweathermap.org/img/wn/${weather.weather[0].icon}.png`}
-                    alt={weather.weather[0].description}
-                    className="w-10 h-10"
-                  />
-                  <div>
-                    <div className="text-xl font-bold">
-                      {convertTemperature(weather.main.temp, temperatureUnit)}{tempSymbol}
-                    </div>
-                    <div className="text-xs text-muted-foreground capitalize">
-                      {weather.weather[0].description}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <Thermometer className="h-3 w-3 text-muted-foreground" />
-                    <span>{convertTemperature(weather.main.feels_like, temperatureUnit)}°</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Droplets className="h-3 w-3 text-muted-foreground" />
-                    <span>{weather.main.humidity}%</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Wind className="h-3 w-3 text-muted-foreground" />
-                    <span>{Math.round(weather.wind.speed)}m/s</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   );
+};
+
+// Export function for external use
+export const addCityToDashboard = async (cityName: string): Promise<boolean> => {
+  if (!weatherApi.hasApiKey()) return false;
+  
+  try {
+    const stored = localStorage.getItem('savedCities');
+    const cities = stored ? JSON.parse(stored) : [];
+    
+    if (cities.some((city: SavedCity) => city.name.toLowerCase() === cityName.toLowerCase())) {
+      return false; // Already exists
+    }
+
+    const weather = await weatherApi.getCurrentWeather(cityName);
+    const newCity: SavedCity = {
+      name: weather.name,
+      weather,
+      lastUpdated: Date.now()
+    };
+
+    const updatedCities = [...cities, newCity];
+    localStorage.setItem('savedCities', JSON.stringify(updatedCities));
+    return true;
+  } catch (error) {
+    return false;
+  }
 };

@@ -23,9 +23,10 @@ import {
 interface WeatherCardProps {
   weather: WeatherData;
   temperatureUnit: TemperatureUnit;
+  compact?: boolean;
 }
 
-export const WeatherCard = ({ weather, temperatureUnit }: WeatherCardProps) => {
+export const WeatherCard = ({ weather, temperatureUnit, compact = false }: WeatherCardProps) => {
   const tempSymbol = getTemperatureSymbol(temperatureUnit);
   const currentTemp = convertTemperature(weather.main.temp, temperatureUnit);
   const feelsLike = convertTemperature(weather.main.feels_like, temperatureUnit);
@@ -39,6 +40,54 @@ export const WeatherCard = ({ weather, temperatureUnit }: WeatherCardProps) => {
   const mainWeather = weather.weather[0];
   const weatherDescription = capitalizeWords(mainWeather.description);
   const iconUrl = getWeatherIconUrl(mainWeather.icon);
+
+  if (compact) {
+    return (
+      <Card className="modern-card p-4 hover-lift">
+        <CardContent className="p-0">
+          <div className="space-y-3">
+            {/* City name */}
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span className="font-semibold text-foreground text-sm">
+                {weather.name}, {weather.sys.country}
+              </span>
+            </div>
+            
+            {/* Weather info */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={iconUrl} 
+                  alt={weatherDescription}
+                  className="w-12 h-12"
+                />
+                <div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {currentTemp}{tempSymbol}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {weatherDescription}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-right space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Droplets className="h-3 w-3" />
+                  <span>{weather.main.humidity}%</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Wind className="h-3 w-3" />
+                  <span>{Math.round(weather.wind.speed * 3.6)} km/h</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">

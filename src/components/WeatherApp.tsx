@@ -6,12 +6,19 @@ import { ApiKeyModal } from './ApiKeyModal';
 import { SearchBar } from './SearchBar';
 import { WeatherCard } from './WeatherCard';
 import { ForecastChart } from './ForecastChart';
+import { OptimizedHourlyForecast } from './OptimizedHourlyForecast';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
 import { TemperatureToggle } from './TemperatureToggle';
+import { WeatherBackground } from './WeatherBackground';
+import { CityDashboard, addCityToDashboard } from './CityDashboard';
+import { LocalTimeWidget } from './LocalTimeWidget';
+import { PopularCities } from './PopularCities';
 import { toast } from '@/hooks/use-toast';
-import weatherLogo from '@/assets/weather-logo.png'; // Force rebuild
+import { Button } from './ui/button';
+import { Plus } from 'lucide-react';
+import weatherLogo from '@/assets/weather-logo.png';
 
 export const WeatherApp = () => {
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
@@ -21,19 +28,27 @@ export const WeatherApp = () => {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('celsius');
   const [backgroundCondition, setBackgroundCondition] = useState<string>('bg-gradient-hero');
+  const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('clear');
+  const [showDashboard, setShowDashboard] = useState(false);
 
   // Initialize app
   useEffect(() => {
-    // Check for API key
-    if (!weatherApi.hasApiKey()) {
-      setShowApiKeyModal(true);
-      return;
-    }
-
     // Load saved temperature unit
     const savedUnit = localStorage.getItem('temperatureUnit') as TemperatureUnit;
     if (savedUnit) {
       setTemperatureUnit(savedUnit);
+    }
+
+    // Load theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    }
+
+    // Check for API key
+    if (!weatherApi.hasApiKey()) {
+      setShowApiKeyModal(true);
+      return;
     }
 
     // Load last searched city or use geolocation
@@ -58,6 +73,7 @@ export const WeatherApp = () => {
       const condition = getWeatherCondition(currentWeather.weather[0].main, isDayTime);
       const bgClass = getBackgroundClass(condition);
       setBackgroundCondition(bgClass);
+      setWeatherCondition(condition);
     }
   }, [currentWeather]);
 
@@ -152,6 +168,24 @@ export const WeatherApp = () => {
     }
   };
 
+  const addToFavorites = async () => {
+    if (!currentWeather) return;
+    
+    const success = await addCityToDashboard(currentWeather.name);
+    if (success) {
+      toast({
+        title: "City Added",
+        description: `${currentWeather.name} has been added to your dashboard.`,
+      });
+    } else {
+      toast({
+        title: "Already Added",
+        description: `${currentWeather.name} is already in your dashboard.`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleTemperatureToggle = (unit: TemperatureUnit) => {
     setTemperatureUnit(unit);
     localStorage.setItem('temperatureUnit', unit);
@@ -167,8 +201,15 @@ export const WeatherApp = () => {
     }
   };
 
+  const handleCitySelect = (cityName: string) => {
+    searchWeather(cityName);
+    setShowDashboard(false);
+  };
+
   return (
     <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
+      {/* Weather Background Animation */}
+      <WeatherBackground condition={weatherCondition} />
       {/* Navigation Bar */}
       <nav className="relative z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -190,6 +231,14 @@ export const WeatherApp = () => {
           
           {/* Controls */}
           <div className="flex items-center space-x-3">
+            <Button
+              variant={showDashboard ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowDashboard(!showDashboard)}
+              className="gap-2"
+            >
+              Dashboard
+            </Button>
             <TemperatureToggle 
               unit={temperatureUnit} 
               onToggle={handleTemperatureToggle} 
@@ -201,31 +250,47 @@ export const WeatherApp = () => {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
-        {/* Hero Search Section */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Weather Made Simple
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get precise weather forecasts for any location
-            </p>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto">
-            <SearchBar 
-              onSearch={searchWeather}
-              onLocationSearch={handleLocationSearch}
-              onRefresh={handleRefresh}
-              isLoading={isLoading}
-              currentCity={currentWeather?.name || ''}
+        {showDashboard ? (
+          <div className="space-y-8">
+            <CityDashboard 
+              temperatureUnit={temperatureUnit}
+              onCitySelect={handleCitySelect}
             />
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Hero Search Section */}
+            <div className="mb-12">
+              <div className="text-center mb-8">
+                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+                  Weather Made Simple
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Get precise weather forecasts for any location
+                </p>
+              </div>
+              
+              {/* Search Bar */}
+              <div className="max-w-2xl mx-auto">
+                <SearchBar 
+                  onSearch={searchWeather}
+                  onLocationSearch={handleLocationSearch}
+                  onRefresh={handleRefresh}
+                  isLoading={isLoading}
+                  currentCity={currentWeather?.name || ''}
+                />
+              </div>
+            </div>
 
-        {/* Weather Content */}
-        <div className="space-y-8">
+            {/* Popular Cities Quick Access */}
+            {!currentWeather && !isLoading && (
+              <div className="mb-12">
+                <PopularCities onCitySelect={searchWeather} />
+              </div>
+            )}
+
+            {/* Weather Content */}
+            <div className="space-y-8">
           {error ? (
             <div className="max-w-2xl mx-auto">
               <ErrorMessage 
@@ -241,16 +306,40 @@ export const WeatherApp = () => {
             </div>
           ) : currentWeather && forecast ? (
             <div className="space-y-8">
-              {/* Main Weather Card */}
-              <div className="max-w-4xl mx-auto">
+              {/* Main Weather Card with Add to Favorites */}
+              <div className="max-w-4xl mx-auto space-y-4">
+                <div className="flex justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addToFavorites}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add to Dashboard
+                  </Button>
+                </div>
                 <WeatherCard 
                   weather={currentWeather} 
                   temperatureUnit={temperatureUnit} 
                 />
               </div>
               
-              {/* Forecast Chart */}
-              <div className="max-w-6xl mx-auto">
+              {/* Local Time Widget */}
+              <div className="max-w-4xl mx-auto">
+                <LocalTimeWidget 
+                  timezone={currentWeather.timezone}
+                  cityName={currentWeather.name}
+                />
+              </div>
+              
+              {/* Enhanced Forecast Section */}
+              <div className="max-w-6xl mx-auto space-y-8">
+                <OptimizedHourlyForecast 
+                  forecast={forecast} 
+                  temperatureUnit={temperatureUnit} 
+                />
+                
                 <ForecastChart 
                   forecast={forecast} 
                   temperatureUnit={temperatureUnit} 
@@ -272,7 +361,8 @@ export const WeatherApp = () => {
               </div>
             </div>
           )}
-        </div>
+          </>
+        )}
       </main>
 
       {/* API Key Modal */}
