@@ -117,4 +117,4 @@ export interface LocationData {
 
 export type TemperatureUnit = 'celsius' | 'fahrenheit';
 
-export type WeatherCondition = 'clear' | 'clouds' | 'rain' | 'storm' | 'snow' | 'mist' | 'sunset' | 'night';
+export type WeatherCondition = 'clear' | 'clouds' | 'rain' | 'storm' | 'snow' | 'mist' | 'sunset' | 'night' | 'thunderstorm' | 'fog';

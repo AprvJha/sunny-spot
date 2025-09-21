@@ -17,11 +17,16 @@ import { LoadingSpinner, SkeletonWeatherCard } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ThemeToggle } from './ThemeToggle';
 import { TemperatureToggle } from './TemperatureToggle';
+import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import cloudcastLogo from '@/assets/cloudcast-logo.png';
+import { Link } from 'react-router-dom';
+import { DynamicLogo } from './DynamicLogo';
+import { User, LogOut, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const WeatherApp = () => {
-  console.log('CloudCast logo imported:', cloudcastLogo);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +39,21 @@ export const WeatherApp = () => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
   const { isOnline, cacheWeatherData, getCachedWeatherData, clearExpiredCache } = useOfflineWeather();
+
+  // Auth state listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Initialize app
   useEffect(() => {
@@ -249,6 +269,22 @@ export const WeatherApp = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Logout Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className={`min-h-screen ${backgroundCondition} transition-all duration-1000 relative overflow-hidden`}>
       {/* Animated Weather Background */}
@@ -259,11 +295,7 @@ export const WeatherApp = () => {
           {/* Logo & Brand */}
           <div className="flex items-center space-x-4">
             <div className="relative">
-              <img 
-                src={cloudcastLogo} 
-                alt="CloudCast Logo" 
-                className="h-12 w-12 object-contain drop-shadow-lg"
-              />
+              <DynamicLogo condition={weatherCondition} className="h-12 w-12" />
               <div className="absolute -inset-1 bg-gradient-primary rounded-full opacity-20 blur-sm"></div>
             </div>
             <div>
@@ -274,11 +306,47 @@ export const WeatherApp = () => {
           
           {/* Controls */}
           <div className="flex items-center space-x-3">
+            {currentWeather && (
+              <Link to="/summary">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI Summary
+                </Button>
+              </Link>
+            )}
+            
             <TemperatureToggle 
               unit={temperatureUnit} 
               onToggle={handleTemperatureToggle} 
             />
             <ThemeToggle />
+            
+            {user ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            ) : (
+              <Link to="/auth">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Login
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </nav>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, MapPin, X, RefreshCw, Clock, History } from 'lucide-react';
+import { VoiceSearch } from './VoiceSearch';
 
 interface SearchBarProps {
   onSearch: (city: string) => void;
@@ -198,6 +199,11 @@ export const SearchBar = ({
               </Button>
             )}
           </div>
+          
+          <VoiceSearch
+            onResult={onSearch}
+            isDisabled={isLoading}
+          />
           
           <Button 
             type="submit" 
