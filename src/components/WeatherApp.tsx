@@ -315,33 +315,33 @@ export const WeatherApp = () => {
           lastUpdated={lastUpdated}
         />
 
-          {/* Popular Cities */}
-          <div className="max-w-6xl mx-auto">
-            <PopularCities 
-              onCitySelect={searchWeather}
-              isLoading={isLoading}
+        {/* Popular Cities */}
+        <div className="max-w-6xl mx-auto">
+          <PopularCities 
+            onCitySelect={searchWeather}
+            isLoading={isLoading}
+          />
+        </div>
+
+        {/* Multi-City Dashboard */}
+        <div className="max-w-6xl mx-auto">
+          <CityDashboard 
+            currentWeather={currentWeather}
+            temperatureUnit={temperatureUnit}
+            onAddCity={handleCityAdd}
+          />
+        </div>
+
+        {/* Local Time Widget */}
+        {currentWeather && (
+          <div className="max-w-md mx-auto">
+            <LocalTimeWidget 
+              cityName={currentWeather.name}
+              timezoneOffset={currentWeather.timezone}
+              country={currentWeather.sys.country}
             />
           </div>
-
-          {/* Multi-City Dashboard */}
-          <div className="max-w-6xl mx-auto">
-            <CityDashboard 
-              currentWeather={currentWeather}
-              temperatureUnit={temperatureUnit}
-              onAddCity={handleCityAdd}
-            />
-          </div>
-
-          {/* Local Time Widget */}
-          {currentWeather && (
-            <div className="max-w-md mx-auto">
-              <LocalTimeWidget 
-                cityName={currentWeather.name}
-                timezoneOffset={currentWeather.timezone}
-                country={currentWeather.sys.country}
-              />
-            </div>
-          )}
+        )}
 
         {/* Weather Content */}
         <div className="space-y-8">
